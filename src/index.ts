@@ -2,7 +2,7 @@ import express from 'express';
 import type { Express, Request, Response, NextFunction } from 'express';
 import axios, { AxiosInstance } from 'axios';
 import cors from 'cors';
-import { API_ID_LIST } from './config/coingecko-api-ids.js';
+import { API_ID_LIST, getSymbolFromApiId } from './config/crypto-symbols.js';
 import { PriceData } from './types/index.js';
 import { setupPriceRoutes } from './api-routes/prices.js';
 import { Server } from 'http';
@@ -20,8 +20,8 @@ const priceCache: Map<string, PriceData> = new Map();
 let isShuttingDown = false;
 
 // Initialize cache with supported cryptocurrencies
-API_ID_LIST.forEach(cryptoId => {
-    priceCache.set(cryptoId, {
+API_ID_LIST.forEach(apiId => {
+    priceCache.set(apiId, {
         price: null,
         lastUpdated: null,
         error: null,
@@ -53,20 +53,21 @@ async function fetchCryptoPrices(): Promise<void> {
             }
         });
 
-        API_ID_LIST.forEach(cryptoId => {
-            const priceData = priceCache.get(cryptoId);
-            const newPrice = response.data[cryptoId]?.usd;
+        API_ID_LIST.forEach(apiId => {
+            const priceData = priceCache.get(apiId);
+            const newPrice = response.data[apiId]?.usd;
+            const symbol = getSymbolFromApiId(apiId);
 
             if (newPrice && isValidPrice(newPrice)) {
-                priceCache.set(cryptoId, {
+                priceCache.set(apiId, {
                     price: newPrice,
                     lastUpdated: new Date(),
                     error: null,
                     updateAttempts: 0
                 });
-                console.log(`[${new Date().toISOString()}] ${cryptoId} price updated: $${newPrice}`);
+                console.log(`[${new Date().toISOString()}] ${symbol || apiId} price updated: $${newPrice}`);
             } else {
-                handlePriceUpdateError(cryptoId, new Error('Invalid price data received'));
+                handlePriceUpdateError(apiId, new Error('Invalid price data received'));
             }
         });
     } catch (error: any) {
@@ -81,24 +82,25 @@ async function fetchCryptoPrices(): Promise<void> {
             }, 60000);
         }
 
-        API_ID_LIST.forEach(cryptoId => {
-            handlePriceUpdateError(cryptoId, error);
+        API_ID_LIST.forEach(apiId => {
+            handlePriceUpdateError(apiId, error);
         });
     }
 }
 
-function handlePriceUpdateError(cryptoId: string, error: Error): void {
-    const priceData = priceCache.get(cryptoId);
+function handlePriceUpdateError(apiId: string, error: Error): void {
+    const priceData = priceCache.get(apiId);
     if (!priceData) return;
     
-    priceCache.set(cryptoId, {
+    priceCache.set(apiId, {
         ...priceData,
         error: error.message,
         updateAttempts: priceData.updateAttempts + 1
     });
 
+    const symbol = getSymbolFromApiId(apiId);
     if (priceData.updateAttempts >= 5) {
-        console.error(`[${new Date().toISOString()}] Cryptocurrency ${cryptoId} failed to update 5 times`);
+        console.error(`[${new Date().toISOString()}] Cryptocurrency ${symbol || apiId} failed to update 5 times`);
     }
 }
 

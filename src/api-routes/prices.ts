@@ -1,6 +1,6 @@
 import express from 'express';
 import type { Router, Request, Response } from 'express';
-import { API_ID_LIST } from '../config/coingecko-api-ids.js';
+import { API_ID_LIST, getApiIdFromSymbol, getSymbolFromApiId } from '../config/crypto-symbols.js';
 import { PriceData } from '../types/index.js';
 
 export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
@@ -12,17 +12,20 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
         let hasValidData = false;
         let hasErrors = false;
 
-        API_ID_LIST.forEach(cryptoId => {
-            const data = priceCache.get(cryptoId);
+        API_ID_LIST.forEach(apiId => {
+            const data = priceCache.get(apiId);
+            const symbol = getSymbolFromApiId(apiId);
+            if (!symbol) return; // Skip if no symbol mapping exists
+
             if (data && data.price !== null) {
                 hasValidData = true;
-                prices[cryptoId] = {
+                prices[symbol] = {
                     price: data.price,
                     lastUpdated: data.lastUpdated
                 };
             } else {
                 hasErrors = true;
-                prices[cryptoId] = {
+                prices[symbol] = {
                     error: data?.error || 'Price data not available',
                     lastUpdated: data?.lastUpdated
                 };
@@ -44,14 +47,15 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
     });
 
     // Single cryptocurrency price endpoint
-    router.get('/price/:cryptoId', (req: Request, res: Response) => {
-        const cryptoId = req.params.cryptoId;
+    router.get('/price/:symbol', (req: Request, res: Response) => {
+        const symbol = req.params.symbol.toUpperCase();
+        const apiId = getApiIdFromSymbol(symbol);
         
-        if (!API_ID_LIST.includes(cryptoId)) {
+        if (!apiId || !API_ID_LIST.includes(apiId)) {
             return res.status(404).json({ error: 'Cryptocurrency not found' });
         }
 
-        const data = priceCache.get(cryptoId);
+        const data = priceCache.get(apiId);
         if (!data || data.price === null) {
             return res.status(503).json({
                 error: data?.error || 'Price data not available',
@@ -60,7 +64,7 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
         }
 
         res.json({
-            id: cryptoId,
+            symbol,
             price: data.price,
             lastUpdated: data.lastUpdated
         });
@@ -68,12 +72,16 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
 
     // Health check endpoint with detailed status
     router.get('/health', (_req: Request, res: Response) => {
-        const cryptoStatuses = Array.from(priceCache.entries()).map(([cryptoId, data]) => ({
-            id: cryptoId,
-            healthy: data.price !== null && data.lastUpdated !== null && data.lastUpdated > new Date(Date.now() - 60000),
-            lastUpdate: data.lastUpdated,
-            updateAttempts: data.updateAttempts
-        }));
+        const cryptoStatuses = Array.from(priceCache.entries()).map(([apiId, data]) => {
+            const symbol = getSymbolFromApiId(apiId);
+            return {
+                symbol,
+                apiId,
+                healthy: data.price !== null && data.lastUpdated !== null && data.lastUpdated > new Date(Date.now() - 60000),
+                lastUpdate: data.lastUpdated,
+                updateAttempts: data.updateAttempts
+            };
+        });
 
         const allHealthy = cryptoStatuses.every(status => status.healthy);
 
