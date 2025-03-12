@@ -8,7 +8,7 @@ import { setupPriceRoutes } from './api-routes/prices.js';
 import { Server } from 'http';
 
 const app: Express = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
 
 // Enable CORS for all routes
@@ -23,6 +23,7 @@ let isShuttingDown = false;
 API_ID_LIST.forEach(apiId => {
     priceCache.set(apiId, {
         price: null,
+        marketCap: null,
         lastUpdated: null,
         error: null,
         updateAttempts: 0
@@ -49,25 +50,28 @@ async function fetchCryptoPrices(): Promise<void> {
         const response = await coingecko.get('/simple/price', {
             params: {
                 ids: cryptoIds,
-                vs_currencies: 'usd'
+                vs_currencies: 'usd',
+                include_market_cap: true
             }
         });
 
         API_ID_LIST.forEach(apiId => {
             const priceData = priceCache.get(apiId);
             const newPrice = response.data[apiId]?.usd;
+            const newMarketCap = response.data[apiId]?.usd_market_cap;
             const symbol = getSymbolFromApiId(apiId);
 
-            if (newPrice && isValidPrice(newPrice)) {
+            if (newPrice && isValidPrice(newPrice) && newMarketCap && isValidPrice(newMarketCap)) {
                 priceCache.set(apiId, {
                     price: newPrice,
+                    marketCap: newMarketCap,
                     lastUpdated: new Date(),
                     error: null,
                     updateAttempts: 0
                 });
-                console.log(`[${new Date().toISOString()}] ${symbol || apiId} price updated: $${newPrice}`);
+                console.log(`[${new Date().toISOString()}] ${symbol || apiId} updated: $${newPrice} (MCap: $${newMarketCap.toLocaleString()})`);
             } else {
-                handlePriceUpdateError(apiId, new Error('Invalid price data received'));
+                handlePriceUpdateError(apiId, new Error('Invalid price or market cap data received'));
             }
         });
     } catch (error: any) {

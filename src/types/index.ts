@@ -1,5 +1,6 @@
 export interface PriceData {
     price: number | null;
+    marketCap: number | null;
     lastUpdated: Date | null;
     error: string | null;
     updateAttempts: number;
@@ -15,12 +16,14 @@ export interface CryptoStatus {
 export interface PriceResponse {
     id: string;
     price: number;
+    marketCap: number;
     lastUpdated: Date;
 }
 
 export interface PricesResponse {
     prices: Record<string, {
         price?: number;
+        marketCap?: number;
         lastUpdated?: Date;
         error?: string;
     }>;

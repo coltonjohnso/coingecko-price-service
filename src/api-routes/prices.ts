@@ -17,10 +17,11 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
             const symbol = getSymbolFromApiId(apiId);
             if (!symbol) return; // Skip if no symbol mapping exists
 
-            if (data && data.price !== null) {
+            if (data && data.price !== null && data.marketCap !== null) {
                 hasValidData = true;
                 prices[symbol] = {
                     price: data.price,
+                    marketCap: data.marketCap,
                     lastUpdated: data.lastUpdated
                 };
             } else {
@@ -56,7 +57,7 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
         }
 
         const data = priceCache.get(apiId);
-        if (!data || data.price === null) {
+        if (!data || data.price === null || data.marketCap === null) {
             return res.status(503).json({
                 error: data?.error || 'Price data not available',
                 lastUpdated: data?.lastUpdated
@@ -66,6 +67,7 @@ export function setupPriceRoutes(priceCache: Map<string, PriceData>): Router {
         res.json({
             symbol,
             price: data.price,
+            marketCap: data.marketCap,
             lastUpdated: data.lastUpdated
         });
     });
