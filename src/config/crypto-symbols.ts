@@ -6,6 +6,16 @@ interface CryptoMapping {
 
 export const CRYPTO_MAPPINGS: CryptoMapping[] = [
     {
+        apiId: 'bitcoin',
+        symbol: 'BTC',
+        name: 'Bitcoin'
+    },
+    {
+        apiId: 'kaspa',
+        symbol: 'KAS',
+        name: 'Kaspa'
+    },
+    {
         apiId: 'quai-network',
         symbol: 'QUAI',
         name: 'Quai Network'
